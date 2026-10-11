@@ -1,0 +1,8 @@
+singleton Config Config.qml
+singleton Theme Theme.qml
+singleton Ui Ui.qml
+singleton Audio Audio.qml
+singleton Brightness Brightness.qml
+singleton Sys Sys.qml
+singleton Notifs Notifs.qml
+singleton Sounds Sounds.qml

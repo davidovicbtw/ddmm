@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""ddmm - terminal control for the ddmm Quickshell desktop (a single hover-to-grow Dynamic Island)."""
+import json, os, subprocess, sys
+
+HOME = os.path.expanduser("~")
+QML = f"{HOME}/.config/quickshell/ddmm"
+CFG = f"{HOME}/.config/ddmm/settings.json"
+
+SCHEMA = {
+    "accent":        ("str",   "#ff8a4c", "accent colour (hex)"),
+    "opacity":       ("float", 1.0,       "island opacity 0.3-1"),
+    "idleWidth":     ("int",   96,        "collapsed width in px"),
+    "idleHeight":    ("int",   30,        "collapsed height in px"),
+    "openWidth":     ("int",   680,       "expanded width in px"),
+    "openHeight":    ("int",   340,       "expanded height in px"),
+    "topGap":        ("int",   6,         "gap from the top screen edge"),
+    "closeDelay":    ("int",   250,       "ms before the island collapses after the mouse leaves"),
+    "clock24":       ("bool",  True,      "24 hour clock"),
+    "seconds":       ("bool",  False,     "show seconds in the idle clock"),
+    "animations":    ("bool",  True,      "enable animations"),
+    "notifications": ("bool",  True,      "ddmm owns notifications (stops dunst)"),
+    "terminal":      ("str",   "kitty",   "terminal"),
+    "search":        ("str",   "https://www.google.com/search?q=", "launcher web search url (ends in q=)"),
+    "invertScroll":  ("bool",  False,     "flip the scroll / swipe direction used to change pages"),
+    "swipeDistance": ("int",   110,       "touchpad swipe distance (px) for one page - lower is more sensitive"),
+    "liveActivities": ("bool", True,      "show workspace / track / charger changes in the island without hovering"),
+    "sounds":        ("bool",  True,      "play system sounds (notifications, charger, volume, unlock)"),
+    "soundVolume":   ("float", 0.6,       "system sound volume 0-1"),
+    "wallDir":       ("str",   "~/Pictures/Wallpapers", "wallpaper folder"),
+}
+PAGES = ["home", "media", "system", "notifs", "launcher", "wallpaper", "power"]
+
+def load():
+    try:
+        with open(CFG) as f: return json.load(f)
+    except Exception: return {}
+
+def save(d):
+    os.makedirs(os.path.dirname(CFG), exist_ok=True)
+    with open(CFG, "w") as f: json.dump(d, f, indent=2)
+
+def conv(key, val):
+    t = SCHEMA[key][0]
+    if t == "bool":
+        if val.lower() in ("1", "true", "on", "yes"): return True
+        if val.lower() in ("0", "false", "off", "no"): return False
+        raise ValueError(f"{key}: expected on/off")
+    return {"int": int, "float": float, "str": str}[t](val)
+
+def qs(*a, quiet=False):
+    r = subprocess.run(["qs", "-p", QML, *a], capture_output=True, text=True)
+    if not quiet and (r.stdout or r.stderr): print((r.stdout + r.stderr).strip())
+    return r
+
+def ipc(*a): return qs("ipc", "call", "ddmm", *a)
+def running(): return qs("ipc", "call", "ddmm", "ping", quiet=True).stdout.strip() == "pong"
+
+def cmd_run(args):
+    if running() and "--replace" not in args:
+        print("ddmm already running"); return
+    if "--replace" in args: qs("kill", quiet=True)
+    if load().get("notifications", True):
+        subprocess.run(["systemctl", "--user", "stop", "dunst"], capture_output=True)
+    subprocess.Popen(["qs", "-d", "-n", "-p", QML], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print("ddmm started")
+
+def cmd_stop(_): qs("kill", quiet=True); print("ddmm stopped")
+def cmd_restart(_):
+    cmd_stop(_); import time; time.sleep(0.6); cmd_run([])
+def cmd_status(_): print("running" if running() else "stopped")
+
+def cmd_set(args):
+    d = load()
+    for a in args:
+        if "=" not in a: sys.exit("usage: ddmm set key=value ...")
+        k, v = a.split("=", 1)
+        if k not in SCHEMA: sys.exit(f"unknown key '{k}' (see: ddmm list)")
+        try: d[k] = conv(k, v)
+        except ValueError as e: sys.exit(str(e))
+        print(f"{k} = {d[k]}")
+    save(d)
+
+def cmd_get(args):
+    d = load()
+    for k in (args or SCHEMA):
+        if k not in SCHEMA: sys.exit(f"unknown key '{k}'")
+        print(f"{k} = {d.get(k, SCHEMA[k][1])}")
+
+def cmd_list(_):
+    d = load()
+    for k, (t, default, desc) in SCHEMA.items():
+        print(f"{k:14} {str(d.get(k, default)):28} {t:6} {desc}" + ("  *" if k in d else ""))
+    print("\n* = overridden (default via `ddmm reset <key>`)")
+
+def cmd_reset(args):
+    d = load()
+    for k in (args or list(d)): d.pop(k, None)
+    save(d); print("reset")
+
+def cmd_island(a):
+    if not a or a[0] == "open": ipc("open")
+    elif a[0] == "close": ipc("close")
+    elif a[0] == "toggle": ipc("toggle")
+    elif a[0] == "page" and len(a) > 1:
+        n = PAGES.index(a[1]) if a[1] in PAGES else int(a[1])
+        ipc("page", str(n))
+    else: sys.exit("usage: ddmm island open|close|toggle|page <0-6|" + "|".join(PAGES) + ">")
+
+def cmd_launcher(a): ipc("launcher", " ".join(a))
+def cmd_wallpaper(_): ipc("wallpaper")
+def cmd_power(_): ipc("power")
+def cmd_media(_): ipc("media")
+def cmd_lock(_):
+    if running(): ipc("lockscreen")
+    else: os.execvp("hyprlock", ["hyprlock"])
+def cmd_lockdemo(_): ipc("lockdemo")
+def cmd_osd(a):
+    kind = a[0] if a else "bright"
+    if kind == "bright":
+        import time; time.sleep(0.05)
+    ipc("osd", kind)
+
+def cmd_log(_):
+    r = subprocess.run(["qs", "-p", QML, "log", "-t", "80"], capture_output=True, text=True)
+    print(r.stdout or r.stderr)
+
+CMDS = {
+    "run": (cmd_run, "start the shell (--replace to restart)"),
+    "stop": (cmd_stop, "stop the shell"),
+    "restart": (cmd_restart, "restart the shell"),
+    "status": (cmd_status, "running / stopped"),
+    "island": (cmd_island, "island open | close | toggle | page <n|name>"),
+    "launcher": (cmd_launcher, "toggle the launcher page (optional query)"),
+    "wallpaper": (cmd_wallpaper, "toggle the wallpaper page"),
+    "power": (cmd_power, "toggle the power page"),
+    "media": (cmd_media, "toggle the media page"),
+    "lock": (cmd_lock, "lock the screen"),
+    "lockdemo": (cmd_lockdemo, "preview the lock screen in a window (Esc to leave)"),
+    "osd": (cmd_osd, "show the brightness bar in the island after an external change"),
+    "set": (cmd_set, "set key=value [key=value ...]"),
+    "get": (cmd_get, "show setting(s)"),
+    "list": (cmd_list, "list all settings"),
+    "reset": (cmd_reset, "reset setting(s) (all if none given)"),
+    "log": (cmd_log, "recent shell log"),
+}
+
+def main():
+    a = sys.argv[1:]
+    if not a or a[0] in ("-h", "--help", "help"):
+        print("ddmm - hover-to-grow Dynamic Island desktop\n")
+        for k, (_, h) in CMDS.items(): print(f"  {k:10} {h}")
+        return
+    if a[0] not in CMDS: sys.exit(f"unknown command '{a[0]}' (ddmm help)")
+    CMDS[a[0]][0](a[1:])
+
+main()

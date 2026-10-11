@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Lists wallpapers as 'path<TAB>colour tags' (cached in ~/.cache/ddmm/wallcolors.json)."""
+import json, os, sys, colorsys
+from multiprocessing import Pool
+from PIL import Image
+
+DIR = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/Pictures/Wallpapers")
+CACHE = os.path.expanduser("~/.cache/ddmm/wallcolors.json")
+EXT = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+
+def bucket(r, g, b):
+    h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+    if v < 0.18: return "black"
+    if s < 0.15: return "white" if v > 0.82 else "gray"
+    h *= 360
+    if h < 15 or h >= 345: n = "red"
+    elif h < 40: n = "orange"
+    elif h < 70: n = "yellow"
+    elif h < 165: n = "green"
+    elif h < 200: n = "cyan"
+    elif h < 255: n = "blue"
+    elif h < 300: n = "purple"
+    else: n = "pink"
+    if n in ("orange", "yellow") and v < 0.55: return "brown"
+    if n == "red" and s < 0.45 and v > 0.8: return "pink"
+    return n
+
+def analyse(p):
+    try:
+        im = Image.open(p)
+        im.draft("RGB", (96, 96))
+        im = im.convert("RGB").resize((48, 48))
+        cnt = {}
+        px = list(im.getdata())
+        for r, g, b in px:
+            k = bucket(r, g, b)
+            cnt[k] = cnt.get(k, 0) + 1
+        n = len(px)
+        tags = [k for k, c in sorted(cnt.items(), key=lambda x: -x[1]) if c / n >= 0.2]
+        if not tags: tags = [max(cnt, key=cnt.get)]
+        # chromatic colours outrank neutrals for a "dark purple" style image
+        chrom = [k for k, c in cnt.items() if k not in ("black", "white", "gray") and c / n >= 0.08]
+        for k in sorted(chrom, key=lambda x: -cnt[x]):
+            if k not in tags: tags.append(k)
+        lum = sum(0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in px) / n
+        if lum < 70 and "dark" not in tags: tags.append("dark")
+        if lum > 175: tags.append("light")
+        return p, " ".join(tags[:4])
+    except Exception:
+        return p, ""
+
+def main():
+    files = []
+    for root, _, fs in os.walk(DIR):
+        for f in fs:
+            if f.lower().endswith(EXT): files.append(os.path.join(root, f))
+    try: cache = json.load(open(CACHE))
+    except Exception: cache = {}
+    todo = [p for p in files if cache.get(p, {}).get("m") != os.path.getmtime(p)]
+    if todo:
+        with Pool(min(8, os.cpu_count() or 2)) as pool:
+            for p, t in pool.imap_unordered(analyse, todo, chunksize=8):
+                cache[p] = {"m": os.path.getmtime(p), "t": t}
+        os.makedirs(os.path.dirname(CACHE), exist_ok=True)
+        json.dump(cache, open(CACHE, "w"))
+    for p in sorted(files, key=lambda s: [int(x) if x.isdigit() else x for x in __import__("re").split(r"(\d+)", s)]):
+        print(p + "\t" + cache.get(p, {}).get("t", ""))
+
+if __name__ == "__main__":
+    main()
