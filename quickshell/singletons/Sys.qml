@@ -66,7 +66,8 @@ Singleton {
         conn.command = pw ? ["nmcli", "dev", "wifi", "connect", ssid, "password", pw] : ["nmcli", "dev", "wifi", "connect", ssid];
         conn.running = true;
     }
-    function setMode(m) { run("$HOME/.local/bin/ddmm-power " + m); game = m === "game"; if (m !== "game") profile = ({ saver: "power-saver", balanced: "balanced", performance: "performance" })[m]; else profile = "performance"; poll.running = true; }
+    function setMode(m) { run("$HOME/.local/bin/ddmm-power " + m); game = m === "game"; if (m !== "game") profile = ({ saver: "power-saver", balanced: "balanced", performance: "performance" })[m]; else profile = "performance"; repoll.restart(); }
+    Timer { id: repoll; interval: 900; onTriggered: poll.running = true }   // re-read only after ddmm-power has finished, else the old profile flickers back
     function lock() { run("qs -p $HOME/.config/quickshell/ddmm ipc call ddmm lockscreen"); }
 
     Timer {
