@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# ddmm-power saver|balanced|performance|game|status
+# Power profile switcher used by the island's battery tile. "game" additionally turns off
+# animations, blur, shadows, rounding and gaps in Hyprland (restored by any other mode).
+# If a `ddgame` helper is on PATH it is called with `on` / `off` (e.g. to free RAM).
+set -u
+FLAG="${XDG_RUNTIME_DIR:-/run/user/$UID}/ddmm-game"
+DDMM="$(command -v ddmm || echo "$HOME/.local/bin/ddmm")"
+
+hl_game_on() {
+    # Hyprland >= 0.55 with the Lua config exposes `eval`; older versions use `keyword`.
+    if hyprctl eval 'hl.config({ animations = { enabled = false }, decoration = { rounding = 0, blur = { enabled = false }, shadow = { enabled = false } }, general = { gaps_in = 0, gaps_out = 0 }, misc = { vfr = true } })' >/dev/null 2>&1; then
+        return
+    fi
+    hyprctl --batch 'keyword animations:enabled 0 ; keyword decoration:rounding 0 ; keyword decoration:blur:enabled 0 ; keyword decoration:shadow:enabled 0 ; keyword general:gaps_in 0 ; keyword general:gaps_out 0' >/dev/null 2>&1 || true
+}
+
+game_off() {
+    [ -e "$FLAG" ] || return 0
+    rm -f "$FLAG"
+    hyprctl reload >/dev/null 2>&1 || true
+    "$DDMM" set animations true >/dev/null 2>&1 || true
+    command -v ddgame >/dev/null 2>&1 && ddgame off >/dev/null 2>&1 || true
+}
+
+case "${1:-}" in
+saver)       game_off; powerprofilesctl set power-saver ;;
+balanced)    game_off; powerprofilesctl set balanced ;;
+performance) game_off; powerprofilesctl set performance ;;
+game)
+    powerprofilesctl set performance 2>/dev/null || true
+    touch "$FLAG"
+    hl_game_on
+    "$DDMM" set animations false >/dev/null 2>&1 || true
+    command -v ddgame >/dev/null 2>&1 && { setsid ddgame on >/dev/null 2>&1 & }
+    ;;
+status) [ -e "$FLAG" ] && echo game || powerprofilesctl get ;;
+*) echo "usage: ddmm-power saver|balanced|performance|game|status" >&2; exit 1 ;;
+esac

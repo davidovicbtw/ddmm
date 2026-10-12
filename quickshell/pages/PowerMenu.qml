@@ -97,9 +97,10 @@ Item {
 
                 // hold fill rises from the bottom
                 Rectangle {
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                    height: parent.height * (tile.sel ? root.fill : 0)
+                    width: parent.width; height: parent.height
+                    radius: tile.radius
+                    y: parent.height * (1 - (tile.sel ? root.fill : 0))
+                    visible: tile.sel && root.fill > 0.001
                     color: tile.tint
                 }
                 // quick tap on non-hold tiles: soft glow behind glyph when selected

@@ -111,7 +111,7 @@ Item {
             columns: 2; columnSpacing: 4; rowSpacing: 4
             Tile { glyph: "\uf1eb"; label: "Wi-Fi"; sub: Sys.wifi ? (Sys.ssid || "Not connected") : "Off"; on: Sys.wifi && Sys.ssid !== ""
                 onClicked: Ui.setPage(2) }
-            Tile { glyph: Sys.charging ? "\uf0e7" : "\uf240"; label: Sys.hasBattery ? Math.round(Sys.percent) + "%" : "AC power"
+            Tile { glyph: Sys.charging ? "\uf0e7" : "\uf240"; label: Sys.hasBattery ? Math.round(Sys.percent) + "%" + (Sys.hoursFor(Sys.curMode) > 0 ? " · ~" + Sys.fmtHours(Sys.hoursFor(Sys.curMode)) : "") : "AC power"
                 sub: (Sys.game ? "Game" : ({ "power-saver": "Power saver", balanced: "Balanced", performance: "Performance" })[Sys.profile] || "") + (Sys.charging ? " · charging" : ""); on: Sys.charging; onClicked: root.modeOpen = true }
             Tile { glyph: "\uf293"; label: "Bluetooth"; sub: root.bt && root.bt.enabled ? "On" : "Off"; on: !!root.bt && root.bt.enabled
                 onClicked: { if (root.bt) root.bt.enabled = !root.bt.enabled; } }
@@ -166,6 +166,8 @@ Item {
                         Text { text: mr.modelData.t; color: mr.active ? Theme.accentText : Theme.fg; font.family: Theme.font; font.pixelSize: 14; font.weight: Font.Medium }
                         Text { text: mr.modelData.d; color: mr.active ? Qt.rgba(0, 0, 0, 0.55) : Theme.dim; font.family: Theme.font; font.pixelSize: 11 } }
                     Text { visible: mr.active; anchors { right: parent.right; rightMargin: 22; verticalCenter: parent.verticalCenter } text: "\uf00c"; color: Theme.accentText; font.family: Theme.icons; font.pixelSize: 14 }
+                    Text { visible: !mr.asking && Sys.hasBattery; anchors { right: parent.right; rightMargin: mr.active ? 52 : 22; verticalCenter: parent.verticalCenter }
+                        text: "~" + Sys.fmtHours(Sys.hoursFor(mr.modelData.id)); color: mr.active ? Qt.rgba(0, 0, 0, 0.6) : Theme.dim; font.family: Theme.mono; font.pixelSize: 12 }
                     // game confirmation
                     Row { visible: mr.asking; x: 62; anchors.verticalCenter: parent.verticalCenter; spacing: 12
                         Text { anchors.verticalCenter: parent.verticalCenter; text: "Switch to Game mode?"; color: Theme.fg; font.family: Theme.font; font.pixelSize: 14; font.weight: Font.Medium } }

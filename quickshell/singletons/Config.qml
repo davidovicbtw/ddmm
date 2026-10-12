@@ -26,6 +26,14 @@ Singleton {
     property bool liveActivities: adapter.liveActivities
     property bool sounds: adapter.sounds
     property real soundVolume: adapter.soundVolume
+    property real lockBlur: adapter.lockBlur
+    property real lockDim: adapter.lockDim
+    property bool lockDate: adapter.lockDate
+    property bool lockGreeting: adapter.lockGreeting
+    property bool lockHint: adapter.lockHint
+    property bool lockSatellites: adapter.lockSatellites
+    property string lockMessage: adapter.lockMessage
+    property bool lockCaps: adapter.lockCaps
 
     FileView {
         path: Quickshell.env("HOME") + "/.config/ddmm/settings.json"
@@ -54,6 +62,14 @@ Singleton {
             property bool liveActivities: true
             property bool sounds: true
             property real soundVolume: 0.6
+            property real lockBlur: 1.0
+            property real lockDim: 0.18
+            property bool lockDate: true
+            property bool lockGreeting: true
+            property bool lockHint: true
+            property bool lockSatellites: true
+            property string lockMessage: ""
+            property bool lockCaps: true
         }
     }
 }

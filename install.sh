@@ -32,7 +32,8 @@ ask()  { [ "$YES" = 1 ] && return 0; read -r -p "$1 [Y/n] " r </dev/tty || retur
 if [ "$UNINSTALL" = 1 ]; then
   say "Uninstalling ddmm"
   "$BIN_DIR/ddmm" stop 2>/dev/null || true
-  rm -rf "$QS_DIR" "$BIN_DIR/ddmm" "$BIN_DIR/ddmm-wallcolors" "$CFG_DIR/hypr"
+  rm -rf "$QS_DIR" "$CFG_DIR/hypr"
+  for b in ddmm ddmm-wallcolors ddmm-power ddmm-wallpaper-restore; do rm -f "$BIN_DIR/$b"; done
   ok "removed shell, CLI and keybind snippets"
   if [ "$PURGE" = 1 ]; then rm -rf "$CFG_DIR" "$FONT_DIR" "$HOME/.cache/ddmm"; ok "removed settings, fonts, cache"
   else echo "  ${D}settings in $CFG_DIR and fonts kept (use --purge to remove)${N}"; fi
@@ -97,8 +98,8 @@ say "Installing"
 "$BIN_DIR/ddmm" stop >/dev/null 2>&1 || true
 put "$SRC/quickshell" "$QS_DIR";                 ok "shell      -> $QS_DIR"
 put "$SRC/bin/ddmm" "$BIN_DIR/ddmm";             ok "CLI        -> $BIN_DIR/ddmm"
-put "$SRC/bin/ddmm-wallcolors" "$BIN_DIR/ddmm-wallcolors"
-chmod +x "$SRC/bin/ddmm" "$SRC/bin/ddmm-wallcolors"
+for b in ddmm-wallcolors ddmm-power ddmm-wallpaper-restore; do put "$SRC/bin/$b" "$BIN_DIR/$b"; done
+chmod +x "$SRC"/bin/*
 mkdir -p "$CFG_DIR/hypr" "$HOME/Pictures/Wallpapers"
 cp "$SRC/hypr/ddmm.conf" "$SRC/hypr/ddmm.lua" "$CFG_DIR/hypr/"
 ok "keybinds   -> $CFG_DIR/hypr/{ddmm.conf,ddmm.lua}"

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import Quickshell.Services.Mpris
+import Quickshell.Io
 import "singletons"
 
 // ddmm lock screen. The desktop island falls from the top of the screen, grows into a capsule that holds
@@ -9,6 +10,7 @@ import "singletons"
 Item {
     id: root
     property string wallpaper: ""
+    property string shot: ""   // screenshot of the desktop taken just before locking
     property string user: ""
     property bool busy: false
     property bool demo: false
@@ -38,7 +40,8 @@ Item {
     Timer { id: dropTimer; interval: 380; onTriggered: root.phase = "rest" }
     Timer { interval: 1000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.now = new Date() }
 
-    function fail() { password = ""; failed = true; shake.restart(); failTimer.restart(); }
+    property int tries: 0
+    function fail() { tries++; password = ""; failed = true; shake.restart(); failTimer.restart(); }
     function leave() {
         if (ok) return;
         ok = true;
@@ -46,7 +49,7 @@ Item {
     }
     // 1: tick shows -> 2: glide up to the desktop island position -> 3: fade the screen away
     Timer { id: okTimer; interval: 260; onTriggered: { root.phase = "glide"; glideTimer.start(); } }
-    Timer { id: glideTimer; interval: 780; onTriggered: { root.phase = "out"; outTimer.start(); } }
+    Timer { id: glideTimer; interval: 900; onTriggered: { root.phase = "out"; outTimer.start(); } }
     Timer { id: outTimer; interval: 520; onTriggered: root.gone() }
     Timer { id: failTimer; interval: 1600; onTriggered: root.failed = false }
 
@@ -89,8 +92,8 @@ Item {
             blurEnabled: true; blurMax: 64
             property real p: root.phase === "rest" ? 1 : 0
             Behavior on p { NumberAnimation { duration: 900; easing.type: Easing.InOutCubic } }
-            blur: p
-            brightness: -0.18 * p
+            blur: p * Config.lockBlur
+            brightness: -Config.lockDim * p
             saturation: -0.1 * p
                     }
         Rectangle {
@@ -103,6 +106,23 @@ Item {
                 GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.5) }
             }
         }
+    }
+
+    // the desktop as it was when locked: windows fade out into the lock, and fade back in on unlock
+    Image {
+        id: shotImg
+        // skip the top strip (the desktop island lives there, windows never do thanks to the strut):
+        // the lock's own wallpaper shows through instead, so only one island is ever visible
+        readonly property real cut: Config.idleHeight + Config.topGap + 14
+        readonly property real k: Screen.devicePixelRatio
+        x: 0; y: cut; width: root.width; height: root.height - cut
+        sourceClipRect: Qt.rect(0, cut * k, root.width * k, (root.height - cut) * k)
+        source: root.shot ? "file://" + root.shot : ""
+        fillMode: Image.Stretch
+        cache: false
+        visible: status === Image.Ready && opacity > 0.01
+        opacity: root.phase === "rest" ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: root.phase === "glide" ? 800 : 650; easing.type: Easing.InOutQuad } }
     }
 
     // ------------------------------------------------------------ the capsule
@@ -159,7 +179,7 @@ Item {
             Row {
                 id: timeRow
                 anchors { horizontalCenter: parent.horizontalCenter; top: lockRow.bottom; topMargin: -6 }
-                Text { text: Qt.formatTime(root.now, "HH"); color: Theme.fg; font.family: Theme.serif; font.pixelSize: 92; font.letterSpacing: -2 }
+                Text { text: Qt.formatTime(root.now, Config.clock24 ? "HH" : "h"); color: Theme.fg; font.family: Theme.serif; font.pixelSize: 92; font.letterSpacing: -2 }
                 Text {
                     text: ":"; color: Theme.fg; font.family: Theme.serif; font.pixelSize: 92
                     topPadding: -4
@@ -170,6 +190,7 @@ Item {
                 Text { text: Qt.formatTime(root.now, "mm"); color: Theme.fg; font.family: Theme.serif; font.pixelSize: 92; font.letterSpacing: -2 }
             }
             Text {
+                visible: Config.lockDate
                 anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 16 }
                 text: Qt.formatDate(root.now, "dddd, d MMMM")
                 color: Theme.dim; font.family: Theme.serif; font.italic: true; font.pixelSize: 21
@@ -186,7 +207,7 @@ Item {
             Text {
                 anchors.centerIn: parent
                 visible: root.password.length === 0 && !root.busy
-                text: root.failed ? "Try again" : "Password"
+                text: root.failed ? (root.tries > 1 ? "Try again  ·  " + root.tries : "Try again") : "Password"
                 color: root.failed ? Theme.danger : Theme.dim
                 font.family: Theme.serif; font.italic: true; font.pixelSize: 24
             }
@@ -226,6 +247,23 @@ Item {
         }
     }
 
+    // ------------------------------------------------------------ caps lock warning
+    property bool caps: false
+    Process {
+        id: capsProc
+        command: ["sh", "-c", "cat /sys/class/leds/*capslock/brightness 2>/dev/null | grep -q 1"]
+        onExited: code => root.caps = code === 0
+    }
+    Timer { interval: 400; repeat: true; running: Config.lockCaps && root.typing && !root.ok; triggeredOnStart: true; onTriggered: if (!capsProc.running) capsProc.running = true }
+    Text {
+        x: (root.width - width) / 2
+        y: cap.y + cap.height + 16
+        text: "CAPS LOCK IS ON"
+        color: Theme.accent; font.family: Theme.font; font.pixelSize: 10; font.letterSpacing: 2.6; font.weight: Font.Medium
+        opacity: Config.lockCaps && root.caps && root.typing && !root.ok ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 180 } }
+    }
+
     // ------------------------------------------------------------ satellites: live activities, privately
     Row {
         id: sats
@@ -261,7 +299,7 @@ Item {
             label: root.player ? (root.player.trackTitle || "Playing") + (root.player.trackArtist ? "  ·  " + root.player.trackArtist : "") : "" }
         Sat { idx: 1; visible: Notifs.unread > 0; glyph: ""
             label: Notifs.unread + (Notifs.unread === 1 ? " notification" : " notifications") }
-        Sat { idx: 2; visible: Sys.hasBattery; glyph: Sys.charging ? "" : ""; glyphColor: Sys.charging ? Theme.accent : Theme.fg
+        Sat { idx: 2; visible: Sys.hasBattery; glyph: Sys.charging ? "" : ""; glyphColor: Sys.charging ? Theme.accent : Sys.percent < 20 ? Theme.danger : Theme.fg
             label: Math.round(Sys.percent) + "%" }
     }
 
@@ -270,7 +308,7 @@ Item {
         anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 54 }
         opacity: root.showRest ? 0.55 : 0
         Behavior on opacity { NumberAnimation { duration: 300 } }
-        text: root.greeting + ", " + root.user + "."
+        text: Config.lockMessage !== "" ? Config.lockMessage : root.greeting + ", " + root.user + "."
         color: Theme.fg; font.family: Theme.serif; font.italic: true; font.pixelSize: 24
     }
     Text {

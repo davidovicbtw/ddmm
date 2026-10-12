@@ -17,7 +17,8 @@ brightness OSD are all the same pill morphing into something else.
 - **Pages:** Home (clock, Wi-Fi / Bluetooth / DND tiles, volume, brightness) · Media (MPRIS) · System (CPU, RAM, temp, battery) · Notifications · Power.
 - **Spotlight-style launcher** (`SUPER+Space`): apps ranked by frecency, open-window switcher, calculator and unit conversion (`5km to mi`, `20% of 80`), `>` run a command, `f ` files via `fd`, `v ` clipboard history via `cliphist`, web search fallback.
 - **Wallpaper picker** (`SUPER+G`): type a colour (`blue`, `dark`, `mavi`...) to filter, arrows to browse, applies with a grow transition via `awww`.
-- **Lock screen** (`SUPER+L` or lid close): the pill drops to the centre, shows clock / now playing / battery, turns into a password field as you type, and glides back on unlock. PAM through the `hyprlock` service.
+- **Lock screen** (`SUPER+L` or lid close): the pill drops to the centre, shows clock / now playing / battery, turns into a password field as you type, and glides back on unlock. PAM through the `hyprlock` service. Caps Lock warning, failed-attempt counter, and the desktop dissolves into the lock. Tweak with `lockBlur`, `lockDim`, `lockDate`, `lockMessage`, `lockSatellites`...
+- **Power modes** (Home → battery tile): saver / balanced / performance / game. Game mode turns off animations, blur, rounding and gaps. Battery tile shows time remaining, learned per mode from your real power draw.
 - **Live activities:** workspace changes, track changes and charger plug-in flash in the idle pill without hovering.
 - **Notifications daemon** built in (it takes over from dunst), with a toast that morphs the pill.
 - Everything is tweakable from the terminal: `ddmm list`, `ddmm set accent=#7aa2ff`, `ddmm set openWidth=720`.
@@ -86,6 +87,7 @@ Optional: `hyprlock` (PAM service for the lock screen), `cliphist` + `wl-clipboa
 ddmm run | stop | restart | status
 ddmm island open|close|toggle|page <n|name>
 ddmm launcher [query] | wallpaper | power | media | lock
+ddmm-power saver|balanced|performance|game
 ddmm lockdemo           # preview the lock screen in a window, Esc leaves
 ddmm set key=value ... | get | list | reset
 ```

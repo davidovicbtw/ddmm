@@ -1,0 +1,11 @@
+#!/bin/sh
+# Start the awww daemon (if needed) and restore the last wallpaper picked in ddmm.
+pgrep -x awww-daemon >/dev/null || { awww-daemon >/dev/null 2>&1 & }
+i=0
+while [ "$i" -lt 20 ]; do awww query >/dev/null 2>&1 && break; i=$((i + 1)); sleep 0.5; done
+f="$(cat "$HOME/.config/ddmm/wallpaper" 2>/dev/null)"
+if [ ! -f "$f" ]; then
+    f="$(find "$HOME/Pictures/Wallpapers" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) 2>/dev/null | sort | head -1)"
+fi
+[ -f "$f" ] && awww img "$f" --transition-type none
+exit 0

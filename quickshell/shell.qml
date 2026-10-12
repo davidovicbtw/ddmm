@@ -35,6 +35,7 @@ ShellRoot {
         function lock(): void { lockScreen.lockNow(); }
         function lockscreen(): void { lockScreen.lockNow(); }
         function lockdemo(text: string): void { lockScreen.demoPw = text; lockScreen.showDemo(); }
+        function dnd(on: bool): void { Notifs.dnd = on; }
         function osd(kind: string): void { if (kind === "bright") { Brightness.refresh(); Ui.showOsd("bright", Brightness.value); } }
     }
 }

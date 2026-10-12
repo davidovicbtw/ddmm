@@ -8,6 +8,7 @@ Singleton {
     readonly property var pageTitles: ["Today", "Now playing", "System", "Notifications", "Power"]
     property bool hovered: false
     property bool pinned: false          // opened by IPC, stays until closed
+    property bool hideIsland: false      // set while the lock screen grabs the desktop, so the island isn't in the screenshot
     property bool toast: false           // opened by a notification
     property bool osdOn: false           // volume / brightness feedback
     property string osdKind: "vol"

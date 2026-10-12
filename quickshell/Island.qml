@@ -96,6 +96,7 @@ PanelWindow {
         radius: Math.min(height / 2, win.modal ? 30 : 36)
         color: Theme.bg
         clip: true
+        visible: !Ui.hideIsland
 
         Behavior on width { SpringAnimation { spring: 3.6; damping: 0.3; epsilon: 0.3; mass: 1 } enabled: Config.animations }
         Behavior on height { SpringAnimation { spring: 3.6; damping: 0.3; epsilon: 0.3; mass: 1 } enabled: Config.animations }

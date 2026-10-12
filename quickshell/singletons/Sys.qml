@@ -22,6 +22,39 @@ Singleton {
     property var networks: []           // {ssid, signal, secure, active, known}
     property bool scanning: false
     property string wifiMsg: ""
+    // battery life estimate per mode: measured draw (W) while discharging, learned per mode and kept on disk
+    property real energyNow: 0          // Wh
+    property real energyFull: 0
+    property real drawNow: 0            // W, only meaningful while discharging
+    property bool discharging: false
+    property var learned: ({})          // mode key -> smoothed watts
+    property int _samples: 0
+    readonly property var modeFactor: ({ saver: 0.75, balanced: 1.0, performance: 1.35, game: 1.7 })
+    readonly property string curMode: game ? "game" : ({ "power-saver": "saver", balanced: "balanced", performance: "performance" })[profile] || "balanced"
+    function drawFor(m) {
+        if (learned[m] > 0) return learned[m];
+        const c = learned[curMode];
+        if (c > 0) return c / modeFactor[curMode] * modeFactor[m];
+        return 8 * modeFactor[m];       // no data yet: guess from a typical laptop
+    }
+    function hoursFor(m) { return energyNow > 0 ? energyNow / Math.max(1.5, drawFor(m)) : 0; }
+    function fmtHours(h) {
+        if (!(h > 0)) return "";
+        const t = Math.round(h * 60), hh = Math.floor(t / 60), mm = t % 60;
+        return hh > 0 ? hh + "h " + (mm < 10 ? "0" : "") + mm + "m" : mm + "m";
+    }
+    function sampleDraw() {
+        if (!discharging || drawNow < 1.5 || drawNow > 80) return;
+        const k = curMode, l = Object.assign({}, learned);
+        l[k] = l[k] > 0 ? l[k] * 0.85 + drawNow * 0.15 : drawNow;
+        learned = l;
+        if (++_samples % 10 === 0) run("mkdir -p ~/.config/ddmm; printf '%s' '" + JSON.stringify(l) + "' > ~/.config/ddmm/powerlearn.json");
+    }
+    Process {
+        running: true
+        command: ["sh", "-c", "cat ~/.config/ddmm/powerlearn.json 2>/dev/null || echo '{}'"]
+        stdout: StdioCollector { onStreamFinished: { try { root.learned = JSON.parse(text.trim() || "{}"); } catch (e) {} } }
+    }
     property real _idle: 0
     property real _total: 0
 
@@ -33,7 +66,7 @@ Singleton {
         conn.command = pw ? ["nmcli", "dev", "wifi", "connect", ssid, "password", pw] : ["nmcli", "dev", "wifi", "connect", ssid];
         conn.running = true;
     }
-    function setMode(m) { run("ddmm-power " + m); game = m === "game"; if (m !== "game") profile = ({ saver: "power-saver", balanced: "balanced", performance: "performance" })[m]; else profile = "performance"; poll.running = true; }
+    function setMode(m) { run("$HOME/.local/bin/ddmm-power " + m); game = m === "game"; if (m !== "game") profile = ({ saver: "power-saver", balanced: "balanced", performance: "performance" })[m]; else profile = "performance"; poll.running = true; }
     function lock() { run("qs -p $HOME/.config/quickshell/ddmm ipc call ddmm lockscreen"); }
 
     Timer {
@@ -42,7 +75,7 @@ Singleton {
     }
     Process {
         id: poll
-        command: ["sh", "-c", "head -1 /proc/stat; grep -E '^(MemTotal|MemAvailable)' /proc/meminfo; for f in /sys/class/thermal/thermal_zone*/temp; do cat $f; break; done; powerprofilesctl get; test -e ${XDG_RUNTIME_DIR:-/run/user/$UID}/ddmm-game && echo 1 || echo 0; nmcli -t -f WIFI g; nmcli -t -f active,ssid dev wifi | grep '^yes' | head -1"]
+        command: ["sh", "-c", "head -1 /proc/stat; grep -E '^(MemTotal|MemAvailable)' /proc/meminfo; for f in /sys/class/thermal/thermal_zone*/temp; do cat $f; break; done; powerprofilesctl get; test -e ${XDG_RUNTIME_DIR:-/run/user/$UID}/ddmm-game && echo 1 || echo 0; nmcli -t -f WIFI g; b=$(ls -d /sys/class/power_supply/BAT* 2>/dev/null | head -1); echo $(cat $b/power_now $b/energy_now $b/energy_full $b/status 2>/dev/null); nmcli -t -f active,ssid dev wifi | grep '^yes' | head -1"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const L = text.trim().split("\n");
@@ -56,7 +89,13 @@ Singleton {
                 root.profile = L[4] || root.profile;
                 root.game = L[5] === "1";
                 root.wifi = (L[6] || "") === "enabled";
-                root.ssid = L[7] ? L[7].split(":")[1] : "";
+                const B = (L[7] || "").split(" ");
+                root.drawNow = (parseInt(B[0]) || 0) / 1e6;
+                root.energyNow = (parseInt(B[1]) || 0) / 1e6;
+                root.energyFull = (parseInt(B[2]) || 0) / 1e6;
+                root.discharging = B[3] === "Discharging";
+                root.sampleDraw();
+                root.ssid = L[8] ? L[8].split(":")[1] : "";
             }
         }
     }

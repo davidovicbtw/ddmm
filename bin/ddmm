@@ -26,6 +26,14 @@ SCHEMA = {
     "liveActivities": ("bool", True,      "show workspace / track / charger changes in the island without hovering"),
     "sounds":        ("bool",  True,      "play system sounds (notifications, charger, volume, unlock)"),
     "soundVolume":   ("float", 0.6,       "system sound volume 0-1"),
+    "lockBlur": ("float", 1.0, "lock screen wallpaper blur 0-1"),
+    "lockDim": ("float", 0.18, "lock screen wallpaper darkening 0-0.6"),
+    "lockDate": ("bool", True, "show the date in the lock capsule"),
+    "lockGreeting": ("bool", True, "show the greeting line on the lock screen"),
+    "lockHint": ("bool", True, "show 'TYPE TO UNLOCK'"),
+    "lockSatellites": ("bool", True, "show now playing / notifications / battery pills on the lock screen"),
+    "lockMessage": ("str", '', "custom text instead of the greeting (empty = greeting)"),
+    "lockCaps": ("bool", True, "warn when Caps Lock is on while typing the password"),
     "wallDir":       ("str",   "~/Pictures/Wallpapers", "wallpaper folder"),
 }
 PAGES = ["home", "media", "system", "notifs", "launcher", "wallpaper", "power"]

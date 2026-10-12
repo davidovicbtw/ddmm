@@ -28,7 +28,20 @@ Scope {
         if (active || lockLoader.active) return;
         unlocking = false; message = "";
         wpFile.reload();
-        wpQuery.running = true;      // lock starts once the current wallpaper is known
+        shot = "";
+        // idle island: grab at once (LockView paints it out of the shot); a busy one is hidden for the grab
+        const busy = Ui.open || Ui.pinned || Ui.spotlight || Ui.walls || Ui.powerMenu || Ui.flashOn || Ui.osdOn || Ui.toast;
+        Ui.close();
+        if (busy) { Ui.hideIsland = true; hideWait.restart(); }
+        else shotProc.running = true;
+    }
+    Timer { id: hideWait; interval: 120; onTriggered: shotProc.running = true }   // grab the desktop so the lock can dissolve out of / back into it
+    property string shot: ""
+    Process {
+        id: shotProc
+        property string file: "/tmp/ddmm-lock-" + Date.now() + ".ppm"
+        command: ["sh", "-c", "rm -f /tmp/ddmm-lock-*.ppm; grim -t ppm " + file + " 2>/dev/null"]
+        onExited: code => { Ui.hideIsland = false; if (code === 0) root.shot = file; wpQuery.running = true; }   // lock starts once the wallpaper is known
     }
     Process {
         id: wpQuery
@@ -38,7 +51,7 @@ Scope {
         }
         onExited: lockLoader.active = true
     }
-    function showDemo() { if (!active) { unlocking = false; message = ""; wpFile.reload(); demo = true; } }
+    function showDemo() { if (!active) { unlocking = false; message = ""; shot = "/tmp/ddmm-demo-shot.ppm"; wpFile.reload(); demo = true; } }
     function finish() { if (!demo) Sounds.play("service-login"); if (lockLoader.item) lockLoader.item.locked = false; demo = false; busy = false; unlocking = false; message = ""; }
 
     FileView {
@@ -86,6 +99,7 @@ Scope {
                     id: view
                     anchors.fill: parent
                     wallpaper: root.wallpaper
+                    shot: root.shot
                     user: root.user
                     busy: root.busy
                     onSubmit: pw => root.tryPassword(pw)
@@ -111,6 +125,7 @@ Scope {
                 id: dview
                 anchors.fill: parent
                 demo: true
+                shot: root.shot
                 Component.onCompleted: password = root.demoPw
                 wallpaper: root.wallpaper
                 user: root.user
