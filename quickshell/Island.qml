@@ -18,8 +18,8 @@ PanelWindow {
     readonly property var player: Mpris.players.values.find(x => x.isPlaying) || null
     readonly property bool modal: Ui.spotlight || Ui.walls || Ui.powerMenu
     readonly property string mode: Ui.spotlight ? "spotlight" : Ui.walls ? "walls" : Ui.powerMenu ? "power" : Ui.open ? "page" : Ui.flashOn ? "flash" : Ui.osdOn ? "osd" : Ui.toast ? "toast" : "idle"
-    readonly property real flashW: Ui.flashKind === "ws" ? 330 : Ui.flashKind === "media" ? 400 : 240
-    readonly property real flashH: Ui.flashKind === "media" ? 68 : 50
+    readonly property real flashW: Ui.flashKind === "ws" ? 140 : Ui.flashKind === "media" ? 400 : 240
+    readonly property real flashH: Ui.flashKind === "media" ? 68 : Ui.flashKind === "ws" ? Config.idleHeight : 50
     readonly property real wantW: mode === "spotlight" ? 760 : mode === "walls" ? 980 : mode === "power" ? 800 : mode === "page" ? Config.openWidth : mode === "flash" ? flashW : mode === "osd" ? 250 : mode === "toast" ? 440 : (player ? Config.idleWidth + 64 : Config.idleWidth)
     readonly property real wantH: mode === "spotlight" ? Ui.spotlightH : mode === "walls" ? 450 : mode === "power" ? 400 : mode === "page" ? Config.openHeight : mode === "flash" ? flashH : mode === "osd" ? 46 : mode === "toast" ? 78 : Config.idleHeight
 
@@ -42,7 +42,7 @@ PanelWindow {
         target: Hyprland
         function onFocusedWorkspaceChanged() {
             const w = Hyprland.focusedWorkspace;
-            if (w) win.flash("ws", { id: w.id, name: w.name }, 1300);
+            if (w) win.flash("ws", { id: w.id, name: w.name }, 900);
         }
     }
     Connections {
@@ -168,38 +168,37 @@ PanelWindow {
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: 150 } }
 
-            // workspaces: a capsule slides to the active numeral
+            // workspaces: five dots, the active one stretches into a capsule
             Item {
                 visible: Ui.flashKind === "ws"
                 anchors.centerIn: parent
-                width: 5 * 46; height: 32
-                Rectangle {
-                    id: cap
-                    readonly property int wid: Ui.flashKind === "ws" && Ui.flashData.id ? Ui.flashData.id : 1
-                    width: 40; height: 30; radius: 15; color: Theme.fg
-                    x: (Math.max(1, Math.min(5, wid)) - 1) * 46 + 3
-                    visible: wid >= 1 && wid <= 5
-                    Behavior on x { SpringAnimation { spring: 5; damping: 0.4; epsilon: 0.3 } }
-                }
-                Repeater {
-                    model: 5
-                    Text {
-                        required property int index
-                        readonly property bool cur: Ui.flashKind === "ws" && Ui.flashData.id === index + 1
-                        readonly property bool used: !!Hyprland.workspaces.values.find(w => w.id === index + 1)
-                        x: index * 46; width: 46; height: 32
-                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                        text: index + 1
-                        color: cur ? Theme.accentText : used ? Theme.fg : Theme.dim
-                        font.family: Theme.mono; font.pixelSize: 14; font.weight: cur ? Font.Bold : Font.Normal
+                width: wsRow.width; height: 10
+                readonly property int wid: Ui.flashKind === "ws" && Ui.flashData.id ? Ui.flashData.id : 0
+                Row {
+                    id: wsRow
+                    visible: parent.wid >= 1 && parent.wid <= 5
+                    spacing: 7
+                    Repeater {
+                        model: 5
+                        Rectangle {
+                            required property int index
+                            readonly property bool cur: index + 1 === parent.parent.wid
+                            readonly property bool used: !!Hyprland.workspaces.values.find(w => w.id === index + 1)
+                            width: cur ? 22 : 7; height: 7; radius: 3.5
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: cur ? Theme.accent : Theme.fg
+                            opacity: cur ? 1 : used ? 0.55 : 0.2
+                            Behavior on width { SpringAnimation { spring: 6; damping: 0.5; epsilon: 0.3 } }
+                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                        }
                     }
                 }
                 // special / out-of-range workspaces get a name instead
                 Text {
-                    visible: !cap.visible
+                    visible: !wsRow.visible
                     anchors.centerIn: parent
                     text: Ui.flashData.name || ""
-                    color: Theme.fg; font.family: Theme.serif; font.italic: true; font.pixelSize: 22
+                    color: Theme.fg; font.family: Theme.serif; font.italic: true; font.pixelSize: 16
                 }
             }
             // track change
