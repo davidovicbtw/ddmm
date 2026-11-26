@@ -111,6 +111,7 @@ Item {
                 width: wl.width; height: picking ? 88 : 42
                 Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                 clip: true
+                Connections { target: Sys; function onNeedPwChanged() { if (Sys.needPw === row.modelData.ssid) { root.pickSsid = row.modelData.ssid; pwIn.text = ""; pwIn.forceActiveFocus(); } } }
                 Rectangle { anchors.fill: parent; radius: 16; color: rowMa.containsMouse ? Theme.cardHover : Theme.card }
                 MouseArea { id: rowMa; x: 0; y: 0; width: parent.width; height: 42; hoverEnabled: true
                     onClicked: {

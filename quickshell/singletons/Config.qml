@@ -34,6 +34,7 @@ Singleton {
     property bool lockSatellites: adapter.lockSatellites
     property string lockMessage: adapter.lockMessage
     property bool lockCaps: adapter.lockCaps
+    property string lockStyle: adapter.lockStyle
 
     FileView {
         path: Quickshell.env("HOME") + "/.config/ddmm/settings.json"
@@ -70,6 +71,7 @@ Singleton {
             property bool lockSatellites: true
             property string lockMessage: ""
             property bool lockCaps: true
+            property string lockStyle: "apple"
         }
     }
 }

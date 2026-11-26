@@ -35,6 +35,7 @@ SCHEMA = {
     "lockMessage": ("str", '', "custom text instead of the greeting (empty = greeting)"),
     "lockCaps": ("bool", True, "warn when Caps Lock is on while typing the password"),
     "wallDir":       ("str",   "~/Pictures/Wallpapers", "wallpaper folder"),
+    "lockStyle": ("str", "apple", "lock screen style: apple (big clock, padlock, zoom-out unlock) or island"),
 }
 PAGES = ["home", "media", "system", "notifs", "launcher", "wallpaper", "power"]
 

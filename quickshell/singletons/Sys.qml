@@ -59,11 +59,18 @@ Singleton {
     property real _total: 0
 
     function run(cmd) { Quickshell.execDetached(["sh", "-c", cmd]); }
+    property string connSsid: ""
+    property string needPw: ""
     function setWifi(on) { run("nmcli radio wifi " + (on ? "on" : "off")); wifi = on; }
     function scanWifi() { if (scanning) return; scanning = true; scan.running = true; }
     function connectWifi(ssid, pw) {
         wifiMsg = "Connecting to " + ssid + "…";
-        conn.command = pw ? ["nmcli", "dev", "wifi", "connect", ssid, "password", pw] : ["nmcli", "dev", "wifi", "connect", ssid];
+        needPw = "";
+        connSsid = ssid;
+        const known = networks.some(n => n.ssid === ssid && n.known);
+        // saved profile with a missing/stale key: write the new password into it instead of creating a duplicate
+        if (pw && known) conn.command = ["sh", "-c", "nmcli con modify id \"$1\" wifi-sec.key-mgmt wpa-psk wifi-sec.psk \"$2\" && nmcli --wait 30 con up id \"$1\"", "sh", ssid, pw];
+        else conn.command = pw ? ["nmcli", "dev", "wifi", "connect", ssid, "password", pw] : ["nmcli", "dev", "wifi", "connect", ssid];
         conn.running = true;
     }
     function setMode(m) { run("$HOME/.local/bin/ddmm-power " + m); game = m === "game"; if (m !== "game") profile = ({ saver: "power-saver", balanced: "balanced", performance: "performance" })[m]; else profile = "performance"; repoll.restart(); }
@@ -127,7 +134,9 @@ Singleton {
         stdout: StdioCollector {}
         stderr: StdioCollector { id: connErr }
         onExited: code => {
-            root.wifiMsg = code === 0 ? "" : (connErr.text.trim().split("\n")[0] || "Could not connect");
+            const err = connErr.text.trim().split("\n")[0];
+            if (code !== 0 && /Secrets were required|No suitable|password/i.test(err)) { root.wifiMsg = "Enter the password for " + root.connSsid; root.needPw = root.connSsid; }
+            else root.wifiMsg = code === 0 ? "" : (err || "Could not connect");
             if (code === 0) Sounds.play("network-connectivity-established");
             root.scanWifi(); poll.running = true;
         }
